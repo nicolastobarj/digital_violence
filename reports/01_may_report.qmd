@@ -1,0 +1,982 @@
+---
+title: "Primera Exploración SIMCE y Cyberbullying"
+format: html
+execute: 
+  echo: false
+  warning: false
+---
+
+```{r}
+pacman::p_load(tidyverse, #Data depuration
+               sjPlot, #Bivariate Analysis
+               summarytools, #Descriptive tables 
+               labelled, #Label data
+               knitr, #Rendering
+               kableExtra, #Rendering
+               gtsummary, #Summarise data
+               summarytools, #Summarise data
+               stargazer, #Summarise data
+               corrplot, #Correlation
+               ggcorrplot, #Correlation
+               ggfittext, #Plotting
+               treemap, #Plotting
+               ggplot2, #Plot data
+               treemapify, #Plot data
+               scales,
+               ggpubr,
+               GGally,
+               ggrepel, #Labels plot
+               patchwork, #Unify plots
+               gridExtra,
+               ggpubr
+)
+
+load("../data/raw_data/simce2m2023.RData")
+rbd <- read.csv(file = "../data/raw_data/simce2m2023_rbd_público_final.csv", sep = ";")
+
+source("../scripts/proccesing/01_proc_data.R")
+
+options(encoding = "UTF-8")
+
+#Seleccionar variables de interés
+data <- segundo %>%
+  select(idAlumno, rbd, genero, starts_with("cest_p11"), starts_with("cest_p12"))
+
+# Diccionario completo con etiquetas descriptivas y orden original
+etiquetas_items <- c(
+  "cest_p11_01" = "Burlas o molestias",
+  "cest_p11_02" = "Exclusión o aislamiento",
+  "cest_p11_03" = "Acoso en redes",
+  "cest_p11_04" = "Compartir contenido sin permiso",
+  "cest_p11_05" = "Agresión física",
+  "cest_p11_06" = "Destrucción de pertenencias",
+  "cest_p11_07" = "Amenazas",
+  "cest_p11_08" = "Coacción",
+  "cest_p11_09" = "Robo",
+  "cest_p11_10" = "Ausencia por miedo",
+  "cest_p12_01" = "Insultos en redes",
+  "cest_p12_02" = "Amenazas en redes",
+  "cest_p12_03" = "Contenido sexual ofensivo",
+  "cest_p12_04" = "Difusión de mentiras",
+  "cest_p12_05" = "Compartir secretos",
+  "cest_p12_06" = "Suplantación de identidad"
+)
+
+# Diccionario para renombrar los ítems
+etiquetas_items_11 <- c(
+  "cest_p11_01" = "Burlas o molestias",
+  "cest_p11_02" = "Exclusión o aislamiento",
+  "cest_p11_03" = "Acoso en redes",
+  "cest_p11_04" = "Compartir contenido en redes",
+  "cest_p11_05" = "Agresión física",
+  "cest_p11_06" = "Destrucción de pertenencias",
+  "cest_p11_07" = "Amenazas",
+  "cest_p11_08" = "Coacción",
+  "cest_p11_09" = "Robo",
+  "cest_p11_10" = "Ausencia por miedo"
+)
+
+# Diccionario para cest_p12 (ya definido previamente)
+etiquetas_items_12 <- c(
+  "cest_p12_01" = "Insultos en redes",
+  "cest_p12_02" = "Amenazas en redes",
+  "cest_p12_03" = "Contenido sexual ofensivo",
+  "cest_p12_04" = "Difusión de mentiras",
+  "cest_p12_05" = "Compartir secretos",
+  "cest_p12_06" = "Suplantación de identidad"
+)
+
+
+# Orden original de los ítems (según aparición en el cuestionario)
+orden_original <- names(etiquetas_items)
+```
+
+En el presente documento se presenta un primer análisis exploratorio de los datos SIMCE 2023, con tal de obtener información acerca de cómo están relacionadas las distintas variables en torno a ciberbullyng y violencia en las escuelas en Chile en los segundos medios. En primer lugar se hizo una revisión del comportamiento de los ítems de dos baterías, una dedicada a acoso escolar y la otra a ser testigo de acoso en redes sociales. Luego, se diseñaron variables compuestas para determinar si los estudiantes son víctimas recurrentes de cyberacoso y violencia offline, y si son testigos recurrente de violencia en redes sociales entre sus compañeros. Estas tres variables fueron exploradas en profundidad.
+
+# Método
+
+## Muestra
+
+Se ocuparon los datos de SIMCE 2023, específicamente la muestra de estudiantes de segundo medio. En total son `r length(unique(segundo$idAlumno))` estudiantes, que están anidados en `r length(unique(segundo$rbd))` escuelas. Los datos fueron recogidos a través de una encuesta que se realiza posterior al examen estandarizado de lenguaje y matemáticas.
+
+## Variables
+
+Se trabajó con las siguientes variables:
+
+**Nivel estudiante**
+
+*genero:* La variable original tenía 5 alternativas, cuales son masculino, femenino, Otro, No sé, Prefiero no decirlo. La variable fue reagrupada en Masculino (1), Femenino (2), Otro (3). Otro contiene al resto de categorías que no son ni masculinas ni femeninas.
+
+*Batería cest_p11: *Durante este año, ¿cuántas veces te ha ocurrido lo siguiente con tus compañeros y compañeras?
+
+-   Se han burlado de mí o me molestan.
+-   Me han ignorado, aislado o me han excluido.
+-   Me han hecho sentir mal por redes sociales o internet (por ejemplo, me han insultado, amenazado, etc.).
+-   Han compartido fotos, videos o información mía por redes sociales o internet sin mi consentimiento.
+-   Me han golpeado.
+-   Me han roto o destruido cosas personales a propósito.
+-   Me han amenazado.
+-   Me han obligado a realizar cosas que no quiero.
+-   Me han robado cosas.
+-   He dejado de asistir al colegio porque siento miedo de que alguien me haga daño.
+
+Categorías de respuesta: Nunca (1), Pocas veces (2), Algunas veces (3), La mayoría de las veces (4)
+
+*Batería cest_p12:* En el último año, ¿has observado o sido testigo en tu curso de alguna de las siguientes situaciones ocurridas en redes sociales (tales como WhatsApp, Instagram, Facebook) o algún otro sitio en internet?
+
+-   Insultan, ofenden o ridiculizan a otro(a) estudiante con mensajes o comentarios.
+-   Amenazan o chantajean a otro(a) estudiante con mensajes o comentarios.
+-   Envían contenidos sexuales, tales como imágenes, comentarios o mensajes, para molestar a otro(a) estudiante.
+-   Se comparten mentiras sobre otro(a) estudiante para perjudicarlo(a) o molestarlo(a).
+-   Comparten secretos o cosas íntimas de alguien sin su consentimiento.
+-   Se hacen pasar por otro(a) estudiante para decir o hacer cosas pesadas o perjudiciales.
+
+Categorías de respuesta: Nunca (1), Pocas veces (2), Algunas veces (3), La mayoría de las veces (4)
+
+*Víctima de violencia fuera de línea:* Variable dicotómica (1/0) que indica si el estudiante eligió Algunas veces (3) o La mayoría de las veces (4) en uno o varios de los ítems 1, 2, 5, 6, 7, 8 y 10 de la batería cest_p11.
+
+*Víctima de violencia en línea:* Variable dicotómica (1/0) que indica si el estudiante eligió Algunas veces (3) o La mayoría de las veces (4) en uno o varios de los ítems 3 y 4 de la batería cest_p11.
+
+*Testigo u observador de violencia en redes sociales:* Variable dicotómica (1/0) que indica si el estudiante eligió Algunas veces (3) o La mayoría de las veces (4) en uno o varios de los ítems de la batería cest_p12.
+
+**Nivel escuela**
+
+*Tipo de financiamiento de la escuela:* La base original distingue entre colegio Municipal, Particular Subvencionado, Particular Pagado, Corp. De Administración 
+Delegada (DL 3166) y Servicio Local de Educación. Las últimas dos categorías junto a la primera fueron agrupadas como colegios públicos, quedando los valores en Público (1), Particular Subvencionado (2) y Particular pagado (3).
+
+*Nivel de adopción digital de la escuela*: Media agregada por escuela de la siguiente lista de items
+
+-   En el colegio nos motivan a utilizar herramientas tecnológicas.
+-   Ocupamos la tecnología frecuentemente en el colegio para aprender.
+-   Para mis compañeros(as) es importante saber usar los computadores para aprender.
+-   Los profesores y profesoras nos enseñan a utilizar herramientas tecnológicas.
+-   En el colegio se preocupan de tener los computadores en buen estado.
+-   El colegio cuenta con internet de buena calidad.
+
+Los valores varían de 1 a 4. A mayor el puntaje, mayor el nivel de adopación.
+
+*Proporción de estudiantes víctimas de violencia fuera de línea en la escuela*: Cantidad de estudiantes que cumplen condición 1 dividido por el total de estudiantes de la escuela.
+
+*Proporción de estudiantes víctimas de violencia en línea en la escuela*: Cantidad de estudiantes que cumplen condición 1 dividido por el total de estudiantes de la escuela.
+
+*Proporción de estudiantes testigos de violencia en redes sociales en la escuela*: Cantidad de estudiantes que cumplen condición 1 dividido por el total de estudiantes de la escuela.
+
+## Técnicas de análisis
+
+Se realizó una exploración descriptiva mediante gráficos univariados y bivariados. También se reviso el nivel asociación entre ítems y la validez de las baterías. 
+
+# Exploración de los ítems
+
+## Descriptivos
+
+En las siguientes tablas se muestran las distribuciones de los ítems, así como sus principales estadísticos. A rasgos generales, se puede señalar que los niveles de violencia que sufren los individuos no es recurrente en la mayoría de la muestra. 
+
+Los ítemms que componen la batería de victimización de acoso escolar tiende a rondar entre el 80% y 90% de individuos que responden que nunca o casi nunca son partícipes de los actos descritos. Los promedios de estas variables también so bajos, tienden a estar entre 1 y 2 en una escala de 1 a 4. Los ítems que señalan insultos, burlas o robos se sale de la norma, en cuanto promedian evidentemente más alto que el resto (>1.7) y tienen una mayor cantidad de participantes en las alternativas "Algunas veces" y "La mayoría de las veces".
+
+```{r}
+dfSummary(data,
+               plain.ascii = FALSE,
+               style = "multiline",
+               tmp.img.dir = "/tmp",
+               graph.magnif = 0.75,
+               headings = F,  # encabezado
+               varnumbers = F, # num variable
+               labels.col = T, # etiquetas
+               na.col = F,    # missing
+               graph.col = F, # plot
+               valid.col = T)|>
+  kable()
+```
+
+Para ser más precisos con la comparación, se diseñón un gráfico de puntos señalando el promedio de cada ítem. Se nota que lo que más sufren los participantes son insultos, burlas y robos, por sobre golpes, amenazas o abusos. Sin embargo, detrás de estos tres ítemes, los que tienen que ver con ser víctima de violencia en redes sociales alcanzan las medias más altas en la batería.
+
+Respecto a los ítems que señalan ser testigo de violencia en RR.SS. se observa una distribución que se concentra en valores mayores pero es más dispersa. Las medias entre ítemes están más separadas entre sí, sin patrones claros. A simples rasgos, el testimonio de violencia digital tiene más variabilidad que el haber sido víctima de ella.
+
+```{r}
+data %>%
+  summarise(across(starts_with(c("cest_p11", "cest_p12")),
+                   ~ mean(as.numeric(.), na.rm = TRUE))) %>%
+  pivot_longer(cols = everything(),
+               names_to = "variable",
+               values_to = "mean_value") %>%
+  mutate(
+    category = case_when(
+      grepl("cest_p12", variable) ~ "Testigo RR.SS.",
+      variable %in% c("cest_p11_03", "cest_p11_04") ~ "Víctima RR.SS",
+      TRUE ~ "Víctima Offline"
+    ),
+    # Convertir a factor con niveles ordenados y etiquetas descriptivas
+    variable = factor(variable, 
+                     levels = orden_original,
+                     labels = etiquetas_items)
+  ) %>%
+  ggplot(aes(x = mean_value, y = variable, color = category)) +
+  geom_point(size = 3) +
+  scale_color_manual(
+    values = c("Víctima RR.SS" = "#E41A1C", 
+               "Testigo RR.SS." = "#377EB8",
+               "Víctima Offline" = "seagreen4")
+  ) +
+  labs(
+    title = "Promedio por ítem de violencia escolar",
+    subtitle = "Agrupado por tipo de violencia",
+    x = "Promedio (escala 1-4)",
+    y = "",
+    color = "Tipo de violencia",
+    caption = "Fuente: SIMCE 2023"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 9), # Tamaño ajustado para etiquetas largas
+    legend.position = "top",
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, color = "gray40"),
+    panel.grid.major.y = element_line(linetype = "dotted") # Líneas horizontales punteadas
+  ) +
+  scale_x_continuous(limits = c(1, 4), breaks = 1:4) # Asegurar escala 1-4
+```
+
+Una vez que se secciona el promedio por género, se encuentra que aquellos que declaran Otro (Incluye "No sé", "Prefiero no decirlo" y "Otro") género al masculino o femenino presentan niveles mucho más elevados en victimización, alrededor de todos los ítems. Respecto a la comparación entre hombres y mujeres, los hombres tienden a puntuar sobre sus pares en eventos de violencia directa o explícita como amenazas, golpes o burlas, sin embargo, las mujeres sufren más de situaciones implosivas o menos visibles de violencia, como la aislación, el acoso por redes y el no ir al colegio por miedo.
+
+```{r}
+##PROMEDIOS POR GÉNERO
+data %>%
+select(genero, starts_with("cest_p11")) %>%
+  mutate(genero = as.factor(genero)) %>%
+  pivot_longer(
+    cols = -genero,
+    names_to = "item",
+    values_to = "valor"
+  ) %>%
+  mutate(
+    item = factor(item, 
+                 levels = names(etiquetas_items_11), # Orden original
+                 labels = etiquetas_items_11)  # Etiquetas descriptivas 
+    )%>%
+  group_by(genero, item) %>%
+  summarise(
+    promedio = mean(valor, na.rm = TRUE),
+    .groups = 'drop'
+  )%>%
+    drop_na()%>%
+  
+ggplot(aes(x = item, y = promedio, fill = genero)) +
+  geom_bar(
+    stat = "identity",
+    position = position_dodge(width = 0.8),
+    width = 0.7,
+    alpha = 0.8
+  ) +
+  geom_text(
+    aes(label = round(promedio, 2)),
+    position = position_dodge(width = 0.8),
+    vjust = -0.5,
+    size = 3
+  ) +
+  scale_fill_manual(
+    values = c("Masculino" = "#E41A1C", "Femenino" = "#377EB8", "Otro" = "seagreen4"),  # Colores distintivos
+    name = "Género"
+  ) +
+  labs(
+    title = "Promedio de respuestas por ítem y género",
+    subtitle = "Variables que miden vicitmización de violencia escolar (cest_p11)",
+    x = "Ítems",
+    y = "Promedio (escala Likert)",
+    caption = "Nota: Valores más altos indican mayor frecuencia de violencia"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top",
+    plot.title = element_text(face = "bold", hjust = 0.5)
+  )+
+ scale_x_discrete(labels = function(x) str_wrap(x, width = 10))
+
+```
+
+A la hora de reconocer o ser testigos de violencia en redes sociales, las brechas de quienes declaran "otro" género al masculino y femenino disminuyen, pero siguen siendo quienes presentan cifras más altas. A su vez, las mujeres presentan notorias ventajas sobre los hombres para reconocer el ciberacoso en redes. Aunque llama la atención de que hombres y mujeres se igualan al indicar el nivel de contenido sexual explícito que se reparten entre compañeros. Es contraintuitivo a lo pensado.
+
+```{r}
+data %>%
+  select(genero, starts_with("cest_p12")) %>%
+  mutate(genero = as.factor(genero)) %>%
+  pivot_longer(
+    cols = -genero,
+    names_to = "item",
+    values_to = "valor"
+  ) %>%
+  mutate(
+    item = factor(item, 
+                 levels = names(etiquetas_items_12),  # Orden original
+                 labels = etiquetas_items_12)         # Etiquetas descriptivas
+  ) %>%
+  group_by(genero, item) %>%
+  summarise(
+    promedio = mean(as.numeric(valor), na.rm = TRUE),
+    .groups = 'drop'
+  )%>%
+  drop_na()%>%
+#Crear gráfico de barras
+ggplot(aes(x = item, y = promedio, fill = genero)) +
+  geom_bar(
+    stat = "identity",
+    position = position_dodge(width = 0.8),
+    width = 0.7,
+    alpha = 0.8
+  ) +
+  geom_text(
+    aes(label = round(promedio, 2)),
+    position = position_dodge(width = 0.8),
+    vjust = -0.5,
+    size = 3.5,
+    color = "black"
+  ) +
+  scale_fill_manual(
+    values = c("Masculino" = "#E41A1C", "Femenino" = "#377EB8", "Otro" = "seagreen4"),  # Colores distintivos
+    name = "Género"
+  ) +
+  scale_y_continuous(
+    breaks = scales::pretty_breaks()
+  ) +
+  labs(
+    title = "Promedio de ítems sobre violencia digital observada (cest_p12)",
+    subtitle = "Escala: 1 (Nunca) a 4 (Muchas veces)",
+    x = "Tipo de violencia digital observada",
+    y = "Promedio de frecuencia",
+    caption = "Datos recolectados mediante cuestionario SIMCE"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+    legend.position = "top",
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, color = "gray40"),
+    panel.grid.major.x = element_blank()
+  )+
+ scale_x_discrete(labels = function(x) str_wrap(x, width = 10))
+```
+
+## Correlaciones
+
+Los ítems están positiva y fuertemente asociados entre sí, todos los coeficientes superan el >.20, y la mayoría está por sobre el >.30. La matriz muestra claramente cómo se marcan los cuadrantes de cada batería, dando indicios de que existe consistencia interna entre cada una de ellas. A su vez, el tamaño de efecto entre los ítems de ser testigo/observar ciberacoso son más fuertes que los que existen entre los ítemes de victimización. 
+
+En la batería de victimización llama la atención que los ítems de ciberacoso (3 y 4) sean los que tengan un tamaño de efecto mayor (.55) entre todas las demás. Las primeras dos preguntas, que refieren a insultos y burlas también presentan alta correlación (.54). Y amenazas con acoso en RR.SS también sobrepasan los >.50.
+
+```{r}
+# Select and convert variables
+cor_matrix <- data %>%
+  select(starts_with(c("cest_p11", "cest_p12"))) %>%
+  mutate(across(everything(), as.numeric)) |>
+  cor(use = "pairwise.complete.obs")
+                     
+# Create annotated heatmap
+corrplot(
+  cor_matrix,
+  method = "color",
+  col = colorRampPalette(c("#e41a1c","#f7fcf0","#2b8cbe"))(100),
+  tl.col = "black",
+  tl.cex = 0.7,
+  tl.pos = "lt",
+  cl.ratio = 0.2,
+  addCoef.col = "black",
+  number.cex = 0.6,
+  addrect = 2,              # Draw rectangles around clusters
+  rect.col = "black",
+  rect.lwd = 2,
+  mar = c(0,0,2,0),
+  title = "Correlación entre dimensiones de violencia escolar"
+)
+```
+
+## Consistencia interna de las variables
+
+Debido a estas altas correlaciones vale la pena preguntarse si acaso la batería cest_p11 está midiendo más de una dimensión de violencia. Se corrió un análisis factorial para explorar la situación. Si se le especifican tres dimensiones, el modelo sugiere que los ítems de redes sociales se asocian a amenazas y dejar de asistir a la escuela, aunque la carga factorial que más pesa es la de insultos y amenazas en redes. Por otro lado, el modelo agrupa todas las situaciones de abuso directo juntas, y deja aislados las burlas e insultos. 
+
+De todas formas, los alpha de cronbach no resultan ser suficientes en el factor 2 y 3.
+
+```{r}
+data|> 
+  select(starts_with("cest_p11"))|>
+  tab_fa(nmbr.fctr = 3)
+```
+
+Para verificar si en realidad las baterías revelan una variable unidimensional, se revisa el nivel de consistencia interna que tiene, así como el aporte particular de cada item. Los resultados revelan que tanto la batería de victimización como la de observar ciberacoso funcionan bien (α>.80).
+
+```{r}
+data|> 
+  select(starts_with("cest_p11"))|>
+  tab_itemscale()
+```
+
+
+```{r}
+data|>
+  select(starts_with("cest_p12"))|>
+  tab_itemscale()
+```
+
+Sin embargo, ya fue demostrado que el robo demuestra un comportamiento distinto que el resto de ítems, y para fines del estudio se espara trabajar violencia digital y violencia offline de modo diferenciado. Entonces se prueba si la batería de victimización sigue funcionando si se restan el ítem 3, 4 y 9. El alpha se sostiene >.80, por lo que se decide seguir trabajando así.
+
+```{r}
+data|>
+  select(cest_p11_01,cest_p11_02,cest_p11_05,cest_p11_06,cest_p11_07,cest_p11_08,
+         cest_p11_10)|>
+  tab_itemscale()
+```
+
+PD. *Como reflexión personal, pareciera que hay suficiente variabilidad y riqueza conceptual entre los ítems para pensar en trabajarlos por separado ¿Por qué queremos agruparlos? Trabajarlos por separados nos permitiría profundizar más en el análisis, aunque también lo hará más complejo. Discutamoslo.*
+
+# Exploración de índices
+
+```{r}
+#Seleccionar variables de interés para este análisis
+data <- segundo %>%
+  select(idAlumno, rbd, genero, vict_off, vict_onl, testigo_rrss, adopcion_digital,
+         rbd_vict_off, rbd_vict_onl, rbd_testigo_rrss, rbd_adopcion_digital, rbd_financiamiento)
+```
+
+## Descriptivos Nivel estudiantes
+
+El siguiente gráfico muestra el porcentaje de estudiantes con respecto al total de la muestra que declara ser víctima o testigo recurrente de violencia. Un 45% de estudiantes que declaran observar violencia en redes sociales. A su vez, un 36% de sus estudiantes que declaran violencia offline. Las cifras bajan si se trata de violencia offline, donde sólo un 13% declaran ser víctimas.
+
+```{r}
+data %>%
+  summarise(
+    Victimización_Offline = mean(vict_off, na.rm = TRUE),
+    Victimización_Online = mean(vict_onl, na.rm = TRUE),
+    Testigo_RRSS = mean(testigo_rrss, na.rm = TRUE)
+  ) %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "Variable",
+    values_to = "Proporción"
+  )%>%
+  ggplot(aes(x = Variable, y = Proporción, fill = Variable)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  geom_text(aes(label = scales::percent(Proporción, accuracy = 1)), 
+            vjust = -0.5, size = 4) +
+  
+  # Customize appearance
+  scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A")) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+  labs(
+    title = "Prevalencia de Violencia Escolar",
+    subtitle = "Proporción de estudiantes que reportaron cada tipo",
+    x = "",
+    y = "Porcentaje (%)",
+    caption = "Nota: Variables dicotómicas (0 = No, 1 = Sí)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, color = "gray40"),
+    axis.text.x = element_text(angle = 15, hjust = 1)
+  )
+```
+
+En los gráficos que siguen se expone la proporción de estudiantes que declaran violencia con respecto al total de estudiantes de su mismo género. Los resultados se leen como "Del 100% de hombres, en promedio un 41% de ellos declara ser víctima de violencia offline".
+
+Los resultados muestran que las estudiantes mujeres y de género "Otro" tienden a presentar mayores níveles de testificación de violencia digital y de victimización de violencia offline. Sin embargo, las cifras disminuyen y casi se igualan en victimización de violencia digital.
+
+```{r}
+# Las mujeres sufren y notan más violencia que los hombres, pero en el género "Otro" esto se dispara
+# Los niveles de victimización online tienden a ser más similares por género.
+
+data %>%
+  group_by(genero) %>%  # Replace 'sexo' with your gender column name
+  summarise(
+    Victimización_Offline = mean(vict_off, na.rm = TRUE),
+    Victimización_Online = mean(vict_onl, na.rm = TRUE),
+    Testigo_RRSS = mean(testigo_rrss, na.rm = TRUE)
+  ) %>%
+  pivot_longer(
+    cols = -genero,
+    names_to = "Variable",
+    values_to = "Proporción"
+  ) %>%
+  drop_na()%>%
+ggplot(aes(x = Variable, y = Proporción, fill = genero)) +
+  geom_bar(
+    stat = "identity",
+    position = position_dodge(width = 0.8),
+    width = 0.7
+  ) +
+  geom_text(
+    aes(label = scales::percent(Proporción, accuracy = 1)),
+    position = position_dodge(width = 0.8),
+    vjust = -0.5,
+    size = 3.5
+  ) +
+  
+  # Customization
+  scale_fill_manual(
+    values = c("#E41A1C", "#377EB8", "#4DAF4A"),
+    name = "Género"
+  ) +
+  scale_y_continuous(
+    labels = scales::percent) +
+  labs(
+    title = "Prevalencia por Género",
+    subtitle = "Proporción que reportó cada tipo de violencia",
+    x = "",
+    y = "Porcentaje (%)",
+    caption = "Variables dicotómicas: 0 = No, 1 = Sí"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "top",
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, color = "gray40"),
+    axis.text.x = element_text(angle = 15, hjust = 1)
+  )
+```
+
+El gráfico a continuación permite elaborar un mapa de cómo están cruzados los tipos de violencia en las escuelas, señalando la proporción de estudiantes que comparten ambos tipos de violencia. Los resultados muestran que un 12% del 13% que declara violencia online, también declara violencia offline. Es decir, hay un 2% que sólo es víctima de acoso en redes.  
+
+```{r}
+# 1. Prepare co-occurrence data with percentages
+cooccur_data <- combn(c("vict_off", "vict_onl", "testigo_rrss"), 2, simplify = FALSE) %>%
+  map_dfr(function(pair) {
+    # Calculate total cases per pair for percentage calculation
+    total <- nrow(data)
+    
+    data %>%
+      count(!!sym(pair[1]), !!sym(pair[2])) %>%
+      mutate(
+        percentage = n/total,
+        combination = paste(
+          ifelse(!!sym(pair[1]) == 1, "Sí", "No"), 
+          case_when(
+            pair[1] == "vict_off" ~ "Offline",
+            pair[1] == "vict_onl" ~ "Online",
+            pair[1] == "testigo_rrss" ~ "Testigo"
+          ),
+          "\n",
+          ifelse(!!sym(pair[2]) == 1, "Sí", "No"), 
+          case_when(
+            pair[2] == "vict_off" ~ "Offline",
+            pair[2] == "vict_onl" ~ "Online",
+            pair[2] == "testigo_rrss" ~ "Testigo"
+          )
+        ),
+        pair = paste(pair, collapse = "_")
+      )
+  }) %>%
+  mutate(
+    pair = factor(pair,
+                  levels = c("vict_off_vict_onl", "vict_off_testigo_rrss", "vict_onl_testigo_rrss"),
+                  labels = c("Vict. Offline vs Vict. Online", 
+                             "Vict. Offline vs Testigo RRSS", 
+                             "Vict. Online vs Testigo RRSS")
+    )
+  )
+
+# 2. Create faceted treemap plot with your custom colors
+#Las relaciones entre variables no se comportan de la misma forma
+ggplot(cooccur_data, aes(area = n, fill = pair, subgroup = pair)) +
+  geom_treemap() +
+  geom_treemap_text(
+    aes(label = paste0(combination, "\n", percent(percentage, accuracy = 0.1))),
+    color = "white",
+    place = "center",
+    size = 12,
+    grow = FALSE,
+    reflow = TRUE
+  ) +
+  facet_wrap(~pair, ncol = 2) +
+  scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A")) + # Your custom palette
+  labs(
+    title = "Co-ocurrencia de los tipos de violencia",
+    subtitle = "El tamaño del área representa la cantidad de casos (n)\nEl porcentaje se calcula sobre el total de la muestra",
+    caption = "Fuente: SIMCE 2023"
+  ) +
+  theme_void(base_size = 14) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 18, margin = margin(b = 10)),
+    plot.subtitle = element_text(hjust = 0.5, color = "gray40", size = 12),
+    strip.text = element_text(face = "bold", size = 14, margin = margin(b = 10)),
+    plot.margin = margin(20, 20, 20, 20)
+  )
+```
+
+## Correlaciones nivel estudiantes
+
+Si se revisan las correlaciones entre los índices, resulta que la victimización online y offline tienen una asociación positiva y considerablemente alta (>.40), y que el testimonio de ciberacoso tiene una asociación mediana con los índices de victimización (.29).
+
+La correlación con el índice de NUDOS sugiere que casi no existe relación entre ser víctima de violencia y la percepción de adopción digital en la escuela (<.6). Sin embargo, se observa una correlación negativa y tenue con ser testigo de violencia en redes sociales (<.11). Es interesante, pues esto se lee: "A medida que el estudiante percibe que su escuela adopta menos las tecnologías digitales para su uso en los procesos de aprendizaje, mayor es la violencia que observan en las redes sociales entre sus compañeros".
+```{r}
+# Select and convert variables
+cor_matrix <- data %>%
+  select(vict_off, vict_onl, testigo_rrss, adopcion_digital) %>%
+  mutate(across(everything(), as.numeric)) |>
+  cor(use = "pairwise.complete.obs")
+
+# Create annotated heatmap
+corrplot(
+  cor_matrix,
+  method = "color",
+  col = colorRampPalette(c("#e41a1c","#f7fcf0","#2b8cbe"))(100),
+  tl.col = "black",
+  tl.cex = 0.7,
+  tl.pos = "lt",
+  cl.ratio = 0.2,
+  addCoef.col = "black",
+  number.cex = 0.6,
+  addrect = 2,              # Draw rectangles around clusters
+  rect.col = "black",
+  rect.lwd = 2,
+  mar = c(0,0,2,0),
+  title = "Correlación entre dimensiones de violencia escolar"
+)
+```
+
+## Descriptivos Nivel escuela
+
+Los siguientes gráficos pertenecen al nivel de escuela, osea que se utilizó una base de datos con 2991 casos, donde cada fila es la proporción de estudiantes que cumplen la condición de las variables en la escuela, con respecto al total de estudiantes.
+
+Las escuelas varían respecto a la proporción de sus estudiantes que son víctimas o testigos de violencia. Como muestra el presente gráfico de cajas, hay escuelas que están cerca del 100%, y otras cerca del 0%, concentrándose la mayoría en valores intermedios. 
+
+Para el caso de Testigo y victimización offline, al menos el 50% de las escuelas tienen una proporción de entre 30% y 60% de estudiantes que cumplen la condición. Respecto a victimización online, las escuelas se concentran entre 0% y 20%, teniendo una distribución menos variable.
+
+```{r}
+# Ensure one row per school (if not already aggregated)
+data %>%
+  distinct(rbd, .keep_all = TRUE) %>%  # Keeps only one row per school
+  select(rbd, rbd_vict_off, rbd_vict_onl, rbd_testigo_rrss) %>%
+  pivot_longer(
+    cols = -rbd,
+    names_to = "variable",
+    values_to = "value"
+  ) %>%
+  mutate(
+    variable = case_when(
+      variable == "rbd_vict_off" ~ "Victimización Offline",
+      variable == "rbd_vict_onl" ~ "Victimización Online",
+      variable == "rbd_testigo_rrss" ~ "Testigo RRSS",
+      TRUE ~ variable
+    )
+  )%>%
+
+ggplot(aes(x = variable, y = value, fill = variable)) +
+  geom_boxplot(
+    alpha = 0.8,
+    width = 0.6,
+    outlier.shape = 21,
+    outlier.fill = "red"
+  )  +
+  
+  # Custom colors (using your preferred palette)
+  scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A")) +
+  scale_y_continuous(
+    labels = scales::percent,
+    limits = c(0, 1),
+    breaks = seq(0, 1, 0.2)
+  ) +
+  
+  # Labels and theme
+  labs(
+    title = "Distribución de Violencia Escolar por Institución",
+    subtitle = paste("N =", n_distinct(rbd$rbd), "escuelas (una observación por escuela)"),
+    x = "",
+    y = "Porcentaje de estudiantes afectados",
+    caption = "El punto amarillo indica la media\nFuente: SIMCE 2023"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, color = "gray40"),
+    axis.text.x = element_text(angle = 15, hjust = 1)
+  )
+```
+
+
+Se diseñó el mismo gráfico de barras separando por el tipo de financiamiento de escuelas en cada una de las variables de interés. Se muestra que los colegios particulares pagados tienden a presentar niveles menores de violencia que los subvencionados y públicos.
+
+```{r}
+# 1. Preparar datos (similar al anterior)
+# Ensure one row per school and reshape
+score_school <- data %>%
+  distinct(rbd, .keep_all = TRUE) %>%  # Una observación por escuela
+  select(rbd, rbd_financiamiento, 
+         rbd_vict_off, rbd_vict_onl, rbd_testigo_rrss) %>%
+  pivot_longer(
+    cols = c(rbd_vict_off, rbd_vict_onl, rbd_testigo_rrss),
+    names_to = "violence_type",
+    values_to = "score"
+  ) %>%
+  mutate(
+    violence_type = case_when(
+      violence_type == "rbd_vict_off" ~ "Vict. Offline",
+      violence_type == "rbd_vict_onl" ~ "Vict. Online",
+      violence_type == "rbd_testigo_rrss" ~ "Testigo RRSS"
+    ),
+    violence_type = factor(violence_type, 
+                           levels = c("Vict. Offline", "Vict. Online", "Testigo RRSS")),
+    rbd_financiamiento = factor(rbd_financiamiento)
+  )
+
+# 2. Boxplot agrupados
+ggplot(score_school, 
+       aes(x = violence_type, y = score, fill = rbd_financiamiento)) +
+  geom_boxplot(
+    alpha = 0.8,
+    width = 0.6,
+    outlier.shape = 21,
+    outlier.fill = "red",
+    position = position_dodge(width = 0.8)
+  ) +
+  
+  # Personalización (igual que antes)
+  scale_fill_manual(
+    values = c("#E41A1C", "#377EB8", "#4DAF4A", "#984EA3"), 
+    name = "Financiamiento"
+  ) +
+  scale_y_continuous(
+    labels = scales::percent,
+    limits = c(0, 1),
+    breaks = seq(0, 1, 0.2)
+  ) +
+  labs(
+    title = "Distribución de Violencia por Tipo de Escuela",
+    subtitle = "Cada caja representa la distribución entre escuelas del mismo tipo",
+    x = "",
+    y = "Porcentaje de estudiantes afectados",
+    caption = paste("Fuente: SIMCE 2023 | N escuelas =", n_distinct(score_school$rbd))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "top",
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, color = "gray40"),
+    panel.grid.major.x = element_blank()
+  )
+```
+
+Si se revisan los estadísticos por cada una de las variables en los tres tipos de escuelas se confirma el patrón: Los particulares presentan medias menores que el resto. Sin embargo, también demuestran tener una desviación estandar mayor, osea que las escuelas particulares son más distintas entre sí que las públicas y subvencionadas en lo que respecta a la violencia.
+
+```{r}
+#3. Tabla con estadísticos
+score_school|>
+  group_by(violence_type, rbd_financiamiento)|>
+  summarise(mean = mean(score, na.rm = TRUE),
+            sd = sd (score, na.rm = TRUE))|>
+  ungroup()|>
+  kable()
+
+```
+
+## Correlaciones nivel escuela
+
+El siguiente gráfico muestra la correlación que tienen las tres variables principales a nivel de escuela. Los resultados dicen que los niveles de violencia se refuerzan positivamente entre sí. Las escuelas que tienen mayor victimización offline, a su vez tienen una mayor proporción de estudiantes que reportan victimización online. Lo mismo para las relaciones con ser testigo en RR.SS.
+
+```{r}
+# Ensure one row per school
+school_data <- data %>%
+  distinct(rbd, .keep_all = TRUE)
+
+# Create all variable pairs
+var_pairs <- combn(c("rbd_vict_off", "rbd_vict_onl", "rbd_testigo_rrss"), 2, simplify = FALSE)
+
+plot_list <- map(var_pairs, ~ {
+  # Calculate correlation
+  corr <- cor(school_data[[.x[1]]], school_data[[.x[2]]], use = "complete.obs")
+  
+  # Create plot
+  ggplot(school_data, aes(x = !!sym(.x[1]), y = !!sym(.x[2]))) +
+    geom_point(alpha = 0.6, color = "#377EB8", size = 2) +
+    geom_smooth(method = "lm", color = "#E41A1C", se = TRUE) +
+    annotate("text", 
+             x = Inf, y = -Inf,
+             label = paste0("r = ", round(corr, 2)),
+             hjust = 1.1, vjust = -1, size = 5,
+             color = "black") +
+    labs(
+      x = case_when(
+        .x[1] == "rbd_vict_off" ~ "Vict. Offline (%)",
+        .x[1] == "rbd_vict_onl" ~ "Vict. Online (%)",
+        .x[1] == "rbd_testigo_rrss" ~ "Testigo RRSS (%)"
+      ),
+      y = case_when(
+        .x[2] == "rbd_vict_off" ~ "Vict. Offline (%)",
+        .x[2] == "rbd_vict_onl" ~ "Vict. Online (%)",
+        .x[2] == "rbd_testigo_rrss" ~ "Testigo RRSS (%)"
+      )
+    ) +
+    scale_x_continuous(labels = scales::percent) +
+    scale_y_continuous(labels = scales::percent) +
+    theme_minimal() +
+    theme(panel.grid.minor = element_blank())
+})
+
+# Combine plots
+ggarrange(plotlist = plot_list, ncol = 3, nrow = 1)
+```
+
+Si estas correlaciones se separan por tipo de escuela se hallan algunas cosas interesantes. Aunque el reforzamiento entre la victimización online y offline no cambia mucho, la correlación entre los dos tipos de victimización con ser testigo de la violencia en redes sociales es notoriamente más fuerte en colegios particulares. Esto quiere decir, que en las escuelas particulares a medida que hay más estudiantes que reconocen más situaciones de ciberacoso en redes entre sus compañeros, tienden a reportar mayores niveles de violencia física y online que los estudiantes de colegios públicos. 
+
+De hecho, si se observa en detalle el gráfico, aunque la pendiente de colegios particulares sea menor, osea que los valores partan desde valores más inferiores, en los valores más altos la pendiente supera a la de colegios públicos y subvencionados. Esto quiere decir, que en las escuelas que tienen mayores niveles de violencia, los particulares, públicos y subvencionados tienden a parecerse más. Las diferencia de medias se explican sobre todo por los casos que tienen niveles menores de violencia.
+
+```{r}
+#Las violencias se relacionan de forma muy parecida en todos los establecimientos.
+#Pero los colegios particulares tienen una asociación mucho más fuerte que el resto en las variables online.
+#Aunquen los colegios particulares tengan niveles menores, tienen más fuerte la asociación.
+#Los colegios particulares tienen más colegios en los niveles inferiores, pero
+#también una mayor proporción en colegios con niveles superires. 
+#Por eso el tamaño de efecto es más fuerte. Parte más abajo y termina más arriba.
+
+# Datos a nivel de escuela (una observación por RBD)
+school_data <- data %>% 
+  distinct(rbd, .keep_all = TRUE)
+
+# Definir parejas de variables
+var_pairs <- list(
+  c("rbd_vict_off", "rbd_vict_onl"),
+  c("rbd_vict_off", "rbd_testigo_rrss"), 
+  c("rbd_vict_onl", "rbd_testigo_rrss")
+)
+
+# Paleta de colores para financiamiento
+financ_colors <- c("#E41A1C", "#377EB8", "#4DAF4A") # Ejemplo: Público, Subvencionado, Privado
+
+create_stratified_plot <- function(x_var, y_var) {
+  
+  # Calcular correlaciones por grupo
+  corrs <- school_data %>%
+    group_by(rbd_financiamiento) %>%
+    summarise(
+      r = round(cor(!!sym(x_var), !!sym(y_var), use = "complete.obs"), 2),
+      x_pos = max(!!sym(x_var), na.rm = TRUE) * 0.8,
+      y_pos = min(!!sym(y_var), na.rm = TRUE) * 1.1
+    )
+  
+  # Crear gráfico
+  ggplot(school_data, aes(x = !!sym(x_var), y = !!sym(y_var), 
+                          color = rbd_financiamiento, fill = rbd_financiamiento)) +
+    geom_point(alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = TRUE, alpha = 0.2) +
+    
+    # Anotar correlaciones
+    geom_text_repel(
+      data = corrs,
+      aes(x = x_pos, y = y_pos, 
+          label = paste0("r = ", r),
+          color = rbd_financiamiento),
+      color = "black",
+      size = 4,
+      hjust = 0,
+      show.legend = FALSE
+    ) +
+    
+    # Formateo
+    scale_color_manual(values = financ_colors) +
+    scale_fill_manual(values = financ_colors) +
+    scale_x_continuous(labels = scales::percent) +
+    scale_y_continuous(labels = scales::percent) +
+    labs(
+      title = paste(
+        case_when(
+          x_var == "rbd_vict_off" ~ "Victimización Offline",
+          x_var == "rbd_vict_onl" ~ "Victimización Online",
+          TRUE ~ "Testigo RRSS"
+        ),
+        "vs",
+        case_when(
+          y_var == "rbd_vict_off" ~ "Victimización Offline",
+          y_var == "rbd_vict_onl" ~ "Victimización Online",
+          TRUE ~ "Testigo RRSS"
+        )
+      ),
+      x = "Porcentaje en escuela (X)",
+      y = "Porcentaje en escuela (Y)",
+      color = "Financiamiento",
+      fill = "Financiamiento"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "top",
+      plot.title = element_text(face = "bold", hjust = 0.5)
+    )
+}
+
+# Gráfico 1: Offline vs Online
+plot1 <- create_stratified_plot("rbd_vict_off", "rbd_vict_onl")
+
+# Gráfico 2: Offline vs Testigo
+plot2 <- create_stratified_plot("rbd_vict_off", "rbd_testigo_rrss")
+
+
+# Gráfico 3: Online vs Testigo
+plot3 <- create_stratified_plot("rbd_vict_onl", "rbd_testigo_rrss")
+
+plot1  # Muestra Offline vs Online
+plot2  # Muestra Offline vs Testigo
+plot3  # Muestra Online vs Testigo
+```
+
+El análisis termina con una revisión separada de la correlación entre adopción digital y las tres variables. Los gráficos explicitan la baja asociación que hay entre las variables.
+
+```{r}
+# Prepare data - one row per school
+school_data <- data %>%
+  distinct(rbd, .keep_all = TRUE) %>%
+  select(rbd, 
+         rbd_adopcion_digital,
+         rbd_vict_off, 
+         rbd_vict_onl, 
+         rbd_testigo_rrss)
+
+# Function to create correlation plots
+create_corr_plot <- function(y_var) {
+  
+  # Calculate correlation
+  corr_val <- cor(school_data$rbd_adopcion_digital, 
+                  school_data[[y_var]], 
+                  use = "complete.obs")
+  
+  # Determine axis limits
+  x_range <- range(school_data$rbd_adopcion_digital, na.rm = TRUE)
+  y_range <- range(school_data[[y_var]], na.rm = TRUE)
+  
+  ggplot(school_data, aes(x = rbd_adopcion_digital, y = !!sym(y_var))) +
+    geom_point(color = "#377EB8", alpha = 0.6, size = 3) +
+    geom_smooth(method = "lm", color = "#E41A1C", se = TRUE, fill = "#FDB462") +
+    annotate("text",
+             x = x_range[1] + diff(x_range)*0.7, 
+             y = y_range[2]*0.9,
+             label = paste0("r = ", round(corr_val, 2)),
+             size = 5, color = "black", fontface = "bold") +
+    labs(
+      x = "Adopción Digital (Escuela)",
+      y = case_when(
+        y_var == "rbd_vict_off" ~ "Vict. Offline (%)",
+        y_var == "rbd_vict_onl" ~ "Vict. Online (%)",
+        y_var == "rbd_testigo_rrss" ~ "Testigo RRSS (%)"
+      )
+    ) +
+    scale_y_continuous(labels = percent_format(accuracy = 1)) +
+    theme_minimal(base_size = 12) +
+    theme(
+      panel.grid.minor = element_blank(),
+      plot.title = element_text(face = "bold", hjust = 0.5)
+    )
+}
+
+# Create individual plots
+plot1 <- create_corr_plot("rbd_vict_off") + 
+  ggtitle("Victimización Offline")
+
+plot2 <- create_corr_plot("rbd_vict_onl") + 
+  ggtitle("Victimización Online")
+
+plot3 <- create_corr_plot("rbd_testigo_rrss") + 
+  ggtitle("Testigo RRSS")
+
+plot1
+plot2
+plot3
+
+```
